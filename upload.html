@@ -1,0 +1,320 @@
+<!DOCTYPE html> 
+<html lang="en"> 
+<head> 
+<meta charset="UTF-8"> 
+<meta http-equiv="X-UA-Compatible" content="IE=edge"> 
+<meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+<title>Admin Panel</title> 
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet"> 
+<style> 
+body { 
+    font-family: 'Roboto', sans-serif; 
+    padding: 20px; 
+    max-width: 800px; 
+    margin: auto; 
+    background-color: #f4f4f4; 
+} 
+.form-group { 
+    display: flex; 
+    align-items: center; 
+    margin-bottom: 15px; 
+} 
+label { 
+    width: 150px; 
+    margin-right: 10px; 
+    font-weight: bold; 
+} 
+input, select, textarea { 
+    flex: 1; 
+    border: 1px solid grey; 
+    padding: 8px; 
+    box-sizing: border-box; 
+    border-radius: 5px; 
+    font-family: 'Roboto', sans-serif; /* Apply font to form elements */ 
+} 
+textarea { 
+    height: 100px; 
+    resize: none; 
+} 
+#controldiv { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-top: 20px; 
+} 
+#addprodbtn, #selimgsbtn { 
+    padding: 10px 15px; 
+    border: none; 
+    border-radius: 5px; 
+    cursor: pointer; 
+    background-color: #007BFF; 
+    color: white; 
+    font-weight: bold; 
+} 
+#addprodbtn { 
+    background-color: #28a745; 
+} 
+#imagesDiv { 
+    display: flex; 
+    flex-wrap: wrap; 
+    gap: 10px; 
+    margin-top: 20px; 
+} 
+#imagesDiv img { 
+    max-width: 100px; 
+    max-height: 100px; 
+    border: 1px dashed black; 
+} 
+#fileList { 
+    margin-top: 20px; 
+} 
+#loadlab { 
+    font-weight: bold; 
+} 
+#clearImagesLabel { 
+    cursor: pointer; 
+    display: block; 
+    color: navy; 
+    font-size: 12px; 
+    margin-top: 10px; 
+} 
+#productView { 
+    margin-top: 40px; 
+    border-top: 2px solid #ccc; 
+    padding-top: 20px; 
+} 
+#productView h2 { 
+    margin-bottom: 20px; 
+    font-weight: 700; /* Bold font weight for headings */ 
+} 
+#productView div { 
+    margin-bottom: 10px; 
+} 
+#productView img { 
+    max-width: 150px; 
+    max-height: 150px; 
+    margin: 10px; 
+    border: 1px solid #ddd; 
+    border-radius: 5px; 
+} 
+</style> 
+</head> 
+<body> 
+<div class="form-group"> 
+    <label for="nameinp">Product Name</label> 
+    <input type="text" id="nameinp"> 
+</div> 
+<div class="form-group"> 
+    <label for="stockinp">Stock (Quantity)</label> 
+    <input type="text" id="stockinp"> 
+</div> 
+<div class="form-group"> 
+    <label for="catinp">Category</label> 
+    <select id="catinp"> 
+        <option value="PDF">PDF</option> 
+        <option value="PNG">PNG</option> 
+        <option value="PPT">PPT</option> 
+        <option value="JPEG">JPEG</option> 
+        <option value="DOC">DOC</option> 
+    </select> 
+</div> 
+<div class="form-group"> 
+    <label for="desarea">Product Description</label> 
+    <textarea id="desarea"></textarea> 
+</div> 
+<div id="imagesdiv"> 
+    <div id="controldiv"> 
+        <label id="loadlab"></label> 
+        <button id="addprodbtn">Add Product</button> 
+        <button id="selimgsbtn">Select Files</button> 
+    </div> 
+    <div id="imagesDiv"></div> 
+    <div id="fileList"></div> 
+</div> 
+<div id="productView"> 
+    <h2>Added Product Details</h2> 
+    <div id="productDetails"></div> 
+    <div id="productImages"></div> 
+</div> 
+<script type="module"> 
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-app.js"; 
+import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-storage.js"; 
+import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/9.1.1/firebase-database.js"; 
+
+const firebaseConfig = { 
+    apiKey: "AIzaSyAaBq1dY3SR1Zf9cfgh_kan5GsYWOw1TfI", 
+    authDomain: "blogfirebase-b75df.firebaseapp.com", 
+    databaseURL: "https://blogfirebase-b75df-default-rtdb.firebaseio.com", 
+    projectId: "blogfirebase-b75df", 
+    storageBucket: "blogfirebase-b75df.appspot.com", 
+    messagingSenderId: "40433844212", 
+    appId: "1:40433844212:web:57e2e985f7b6647b0203a1" 
+}; 
+
+const app = initializeApp(firebaseConfig); 
+const storage = getStorage(app); 
+const realdb = getDatabase(app); 
+
+let Files = []; 
+let FileLinksArray = []; 
+
+const imgDiv = document.getElementById('imagesDiv'); 
+const fileListDiv = document.getElementById('fileList'); 
+const selBtn = document.getElementById('selimgsbtn'); 
+const addBtn = document.getElementById('addprodbtn'); 
+const proglab = document.getElementById('loadlab'); 
+
+const productDetailsDiv = document.getElementById('productDetails'); 
+const productImagesDiv = document.getElementById('productImages'); 
+
+function OpenFileDialog() { 
+    let inp = document.createElement('input'); 
+    inp.type = 'file'; 
+    inp.multiple = true; 
+    inp.accept = '.jpg, .jpeg, .png, .gif, .pdf, .doc, .docx, .ppt, .pptx'; 
+    inp.onchange = function(e) { 
+        for (let i = 0; i < this.files.length; i++) { 
+            Files.push(this.files[i]); 
+            let fileReader = new FileReader(); 
+            fileReader.readAsDataURL(this.files[i]); 
+            fileReader.onload = function(e) { 
+                FileLinksArray.push({ name: Files[Files.length - 1].name, data: e.target.result }); 
+                UpdateFileList(); 
+            }; 
+        } 
+    }; 
+    inp.click(); 
+} 
+
+function UpdateFileList() { 
+    imgDiv.innerHTML = ''; 
+    fileListDiv.innerHTML = ''; 
+
+    FileLinksArray.forEach(file => { 
+        if (file.name.match(/\.(jpg|jpeg|png|gif)$/i)) { 
+            let img = document.createElement('img');  
+            img.src = file.data; 
+            imgDiv.appendChild(img); 
+        } else { 
+            let link = document.createElement('a'); 
+            link.href = file.data; 
+            link.download = file.name; 
+            link.innerText = file.name; 
+            fileListDiv.appendChild(link); 
+            fileListDiv.appendChild(document.createElement('br')); 
+        } 
+    }); 
+
+    if (FileLinksArray.length > 0) { 
+        let clearLabel = document.createElement('label'); 
+        clearLabel.id = 'clearImagesLabel'; 
+        clearLabel.innerText = 'Clear Images'; 
+        clearLabel.style.cursor = 'pointer'; 
+        clearLabel.style.display = 'block'; 
+        clearLabel.style.color = 'navy'; 
+        clearLabel.style.fontSize = '12px'; 
+        clearLabel.addEventListener('click', clearImages); 
+        imgDiv.appendChild(clearLabel); 
+    } 
+} 
+
+function clearImages() { 
+    Files = []; 
+    FileLinksArray = []; 
+    imgDiv.innerHTML = ''; 
+    fileListDiv.innerHTML = ''; 
+} 
+
+function getShortTitle() { 
+    let name = document.getElementById('nameinp').value.substring(0, 50); 
+    return name.replace(/[^a-zA-Z0-9]/g, ""); 
+} 
+
+function GetImageuploadProgress() { 
+    return 'Images upload ' + FileLinksArray.length + ' of ' + Files.length; 
+} 
+
+function IsAllImagesUpload() { 
+    return FileLinksArray.length == Files.length; 
+} 
+
+function UploadAllImages() { 
+    selBtn.disabled = true; 
+    addBtn.disabled = true; 
+    FileLinksArray = []; 
+    for (let i = 0; i < Files.length; i++) { 
+        uploadAnImage(Files[i], i); 
+    } 
+} 
+
+function uploadAnImage(imgToUpload, imgNo) { 
+    const metadata = { 
+        contentType: imgToUpload.type 
+    }; 
+    const ImageAddress = "TheImage" + getShortTitle() + "image#" + (imgNo + 1); 
+    const storageRef = sRef(storage, ImageAddress); 
+    const uploadTask = uploadBytesResumable(storageRef, imgToUpload, metadata); 
+
+    uploadTask.on('state_changed', (snapshot) => { 
+        proglab.innerHTML = GetImageuploadProgress(); 
+    }, (error) => { 
+        alert("Error: image upload failed"); 
+    }, () => { 
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => { 
+            FileLinksArray.push(downloadURL); 
+            if (IsAllImagesUpload()) { 
+                proglab.innerHTML = "All images uploaded"; 
+                uploadAProduct(); 
+            } 
+        }); 
+    }); 
+} 
+
+function RestoreBack() { 
+    selBtn.disabled = false; 
+    addBtn.disabled = false; 
+    proglab.innerHTML = ''; 
+} 
+
+function uploadAProduct() { 
+    const productData = { 
+        ProductTitle: document.getElementById('nameinp').value, 
+        Category: document.getElementById('catinp').value, 
+        Description: document.getElementById('desarea').value, 
+        Stock: document.getElementById('stockinp').value, 
+        Links: FileLinksArray 
+    }; 
+
+    set(ref(realdb, "TheProductRealdb/" + getShortTitle()), productData)
+        .then(() => { 
+            alert("Product added successfully"); 
+            RestoreBack(); 
+            displayProduct(productData); 
+        })
+        .catch((error) => { 
+            alert("Error: " + error); 
+            RestoreBack(); 
+        }); 
+} 
+
+function displayProduct(productData) { 
+    productDetailsDiv.innerHTML = `
+        <div><strong>Product Name:</strong> ${productData.ProductTitle}</div>
+        <div><strong>Category:</strong> ${productData.Category}</div>
+        <div><strong>Description:</strong> ${productData.Description}</div>
+        <div><strong>Stock:</strong> ${productData.Stock}</div>
+    `; 
+    productImagesDiv.innerHTML = ''; 
+    productData.Links.forEach(link => { 
+        let img = document.createElement('img'); 
+        img.src = link; 
+        productImagesDiv.appendChild(img); 
+    }); 
+} 
+
+selBtn.addEventListener('click', OpenFileDialog); 
+addBtn.addEventListener('click', UploadAllImages); 
+</script> 
+</body> 
+</html>
